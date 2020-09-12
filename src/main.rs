@@ -120,8 +120,7 @@ impl GameOfLife {
         print!("\n");
     }
 }
-fn bench() {
-    let size = 10000;
+fn bench(size:usize) {
     let mut game = GameOfLife::new(size,size);
     let mut rng = oorandom::Rand64::new(0xdeadbeaf);
     for cluster in game.grid.iter_mut() {
@@ -168,6 +167,8 @@ fn example() {
 
 }
 fn main() {
-    bench();
+    bench(100);
+    bench(1000);
+    bench(10000);
     //example();
 }
