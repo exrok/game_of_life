@@ -1,5 +1,6 @@
 
-// 62x32 grid 
+// Each u64 in the grid represented 62 cells, the lowest and highest bit are used
+// to merge the most outer neighbour cell. The merging is preformed in extend edges. 
 struct GameOfLife {
     width: usize,
     height: usize,
@@ -141,6 +142,7 @@ fn main() {
 
     // BENCHMARK
     // let mut game = GameOfLife::new(10000,10000);
+    // Generate random initla state // I removed the crate for random for now
     // for _ in 0..100 {
     //     game.tick();
     // }
