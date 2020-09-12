@@ -1,5 +1,4 @@
-
-// Each u64 in the grid represented 62 cells, the lowest and highest bit are used
+// Each u64 in the grid represented VECTOR_WIDTH cells, the lowest and highest bit are used
 // to merge the most outer neighbour cell. The merging is preformed in extend edges. 
 //
 // On the boundary of the grid all cells out side the grid are treat as dead for
@@ -10,19 +9,20 @@ pub struct GameOfLife {
     grid: Box<[u64]> 
 }
 
+const VECTOR_WIDTH: usize = 62;
 impl GameOfLife {
     pub fn new(width: usize, height: usize) -> GameOfLife {
         GameOfLife {
             width,
             height,
-            grid: vec![0;((width+61)/62)*height].into()
+            grid: vec![0;((width+61)/VECTOR_WIDTH)*height].into()
         }
     }
 
     pub fn tick(&mut self) {
         self.extend_edges();
 
-        // Computes the next state for the 62 cells in row
+        // Computes the next state for the VECTOR_WIDTH cells in row
         fn compute_next(above:u64, row: u64, below: u64) -> u64 {
             let a = above ^ row ^ below;
             let b = (above & row & below) | ((above | row | below) & !a);
@@ -44,34 +44,34 @@ impl GameOfLife {
             return three | (row & two);
         }
 
-        for column in self.grid.chunks_mut(self.height) {
-            let mut top = 0;
-            for i in 0..column.len()-1 { // Sadly as of RUST 1.46, the bound checks
-                let tmp = column[i];     // are not removed, performance suffers a bit
-                column[i] = compute_next(top, tmp, column[i+1]); 
-                top = tmp;
+        for rows in self.grid.chunks_mut(self.height) {
+            let mut above = 0;
+            for i in 0..rows.len() - 1 { // Sadly as of RUST 1.46, the bound checks
+                let row = rows[i];     // are not removed, performance suffers a bit
+                rows[i] = compute_next(above, row, rows[i+1]); 
+                above = row;
             }
-            if let Some(last) = column.last_mut() {
-                *last = compute_next(top, *last,  0)
+            if let Some(last) = rows.last_mut() {
+                *last = compute_next(above, *last,  0)
             }
         }
     }
 
-    // Places the neighbouring cells on edges of columns on the adjacent columns
+    // Places the neighbouring cells on edges of rowsumns on the adjacent rowsumns
     fn extend_edges(&mut self) {
         let edge_mask = 0x8000_0000_0000_0001;
-        //tail_mask is used to zero extra width in the last column
-        let tail_mask = edge_mask | !(!0u64 >> (63 - self.width%62));  
-        if self.width <= 62 {
+        //tail_mask is used to zero extra width in the last rowsumn
+        let tail_mask = edge_mask | !(!0u64 >> ((VECTOR_WIDTH+1) - self.width%VECTOR_WIDTH));  
+        if self.width <= VECTOR_WIDTH {
             for f in self.grid.iter_mut() {
-                *f ^= (*f) & tail_mask; 
+                *f &= !tail_mask; 
             }
             return;
         }
 
         let (first, right) = self.grid.split_at_mut(self.height); // First Column
         for (f,r) in first.iter_mut().zip(right.iter()) {
-            *f ^= (((r << 62)) ^ *f) & edge_mask; 
+            *f ^= ((r << VECTOR_WIDTH) ^ *f) & edge_mask; 
         }
 
         let mut start = 0;
@@ -80,7 +80,7 @@ impl GameOfLife {
             let (middle, right) = remaining.split_at_mut(self.height);
 
             for ((l, m), r) in left.iter().zip(middle.iter_mut()).zip(right.iter()) {
-                *m ^= (((l >> 62) | (r << 62)) ^ *m) & edge_mask
+                *m ^= (((l >> VECTOR_WIDTH) | (r << VECTOR_WIDTH)) ^ *m) & edge_mask
             }
 
             start += self.height;
@@ -88,11 +88,12 @@ impl GameOfLife {
         
         let (left, end) = self.grid[start..].split_at_mut(self.height); // Last Column
         for (l, e) in left.iter().zip(end.iter_mut()) {
-            *e ^= ((l >> 62) ^ *e) & tail_mask;
+            *e ^= ((l >> VECTOR_WIDTH) ^ *e) & tail_mask;
         }
     }
-    fn is_alive(&self, x: usize, y: usize) -> bool {
-        ((self.grid[((x /62)* self.height + y)] >> (x % 62 + 1)) & 0b1) == 1
+
+    pub fn is_alive(&self, x: usize, y: usize) -> bool {
+        ((self.grid[((x /VECTOR_WIDTH)* self.height + y)] >> (x % VECTOR_WIDTH + 1)) & 0b1) == 1
     }
 }
 
@@ -119,11 +120,30 @@ impl GameOfLife {
         print!("\n");
     }
 }
+fn bench() {
+    let size = 10000;
+    let mut game = GameOfLife::new(size,size);
+    let mut rng = oorandom::Rand64::new(0xdeadbeaf);
+    for cluster in game.grid.iter_mut() {
+        *cluster = rng.rand_u64();
+    }
+    let steps = 100;
+    eprintln!("benchmarking {}x{} with {} steps", size, size, steps);
+    let start_time = std::time::Instant::now();
+    for _ in 0..steps {
+        game.tick();
+    }
+    let elapsed = start_time.elapsed();
+    let parity = game.grid.iter().fold(0u64,|x,&y| y ^ x );
+    eprintln!("benchmark complete, avg tick: {} ms", (elapsed.as_secs_f64()*1000.0)/(steps as f64));
+    eprintln!("end state parity:{:X}",parity);
 
-fn main() {
+}
+
+fn example() {
     // EXAMPLE
-    let mut game = GameOfLife::new(83,32);
-    game.grid[4] = 0b001110001110000; //xor
+    let mut game = GameOfLife::new(89,32);
+    game.grid[4] = 0b001110001110000; //star thing
     game.grid[5] = 0;
     game.grid[6] = 0b100001010000100;
     game.grid[7] = 0b100001010000100;
@@ -146,9 +166,8 @@ fn main() {
         std::thread::sleep(std::time::Duration::from_millis(30));
     }
 
-    // // BENCHMARK
-    // // Generate random initla state // I removed the crate for random for now
-    // for _ in 0..100 {
-    //     game.tick();
-    // }
+}
+fn main() {
+    bench();
+    //example();
 }
