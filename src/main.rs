@@ -7,26 +7,27 @@ pub struct GameOfLife {
     grid: Box<[CellCluster]> 
 }
 
-// Each cell cluster stores the state 62 cells  
-// the most and least signficant bits are used as temporaries
-// to store the next and prev cell of the adjacent clusters.
+// Each cell cluster stores the state 62 cells. The most and least signficant
+// bits are used as temporaries to store a copy of the next and prev cell in
+// the row of the adjacent clusters. These temporaries are called the edges,  
+// and are undefined outside of the tick functions.  
 type CellCluster = u64;
 
-const VECTOR_WIDTH: usize = 62;
+const CLUSTER_LEN: usize = 62;
 impl GameOfLife {
     pub fn new(width: usize, height: usize) -> GameOfLife {
         GameOfLife {
             width,
             height,
-            grid: vec![0;((width+(VECTOR_WIDTH - 1))/VECTOR_WIDTH)*height].into()
+            grid: vec![0;((width+(CLUSTER_LEN - 1))/CLUSTER_LEN)*height].into()
         }
     }
 
     pub fn tick(&mut self) {
-        self.extend_edges();
+        self.update_cluster_edges();
 
-        // Computes the next state for the VECTOR_WIDTH cells in row
-        fn compute_next(above:CellCluster, row: CellCluster, below: CellCluster) -> u64 {
+        // Computes the next state for the CLUSTER_LEN cells in row
+        fn compute_next(above: CellCluster, row: CellCluster, below: CellCluster) -> u64 {
             let a = above ^ row ^ below; // parity in a column
             let b = (above & row & below) | ((above | row | below) & !a); //three_or_two in a column
 
@@ -63,54 +64,52 @@ impl GameOfLife {
                 above = row;
             }
             if let Some(last) = rows.last_mut() {
-                *last = compute_next(above, *last,  0)
+                *last = compute_next(above, *last, 0)
             }
         }
     }
 
     // Stores the next and prev cell of the adjacent clusters of each column into
-    // the temporary cells in each cluster. 
-    //    
+    //  the temporary cells in each cluster. Further, the horizontal boundary 
+    //  behaviour is provided by zeroing the first and last cells of each row. 
+    //
     //  TAAA...AAAT, TBBB...BBBT, TCCC...CCCT
     // =>
     //  0AAA...AAAB, ABBB...BBBC, BCCC...CCC0
-    fn extend_edges(&mut self) {
+    fn update_cluster_edges(&mut self) {
         let edge_mask = 0x8000_0000_0000_0001;
         //tail_mask is used to zero extra width in the last rowsumn
-        let tail_mask = edge_mask | !(!0u64 >> ((VECTOR_WIDTH+1) - self.width%VECTOR_WIDTH));  
-        if self.width <= VECTOR_WIDTH {
-            for f in self.grid.iter_mut() {
+        let tail_mask = edge_mask | !(!0u64 >> ((CLUSTER_LEN+1) - self.width % CLUSTER_LEN));  
+
+        let mut columns = self.grid.chunks_exact_mut(self.height);
+        let mut prev = columns.next().unwrap(); 
+
+        if let Some(mut curr) = columns.next() {
+            for (first, second) in prev.iter_mut().zip(curr.iter()) {
+                *first ^= ((second << CLUSTER_LEN) ^ *first) & edge_mask; 
+            }
+
+            for next in columns {
+                for ((left, mid), right) in prev.iter().zip(curr.iter_mut()).zip(next.iter()) {
+                    *mid ^= (((left >> CLUSTER_LEN) | (right << CLUSTER_LEN)) ^ *mid) & edge_mask
+                }
+                prev = curr;
+                curr = next;
+            }
+
+            for (left, last) in prev.iter().zip(curr.iter_mut()) {
+                *last ^= ((left >> CLUSTER_LEN) ^ *last) & tail_mask; 
+            }
+        } else {
+            for f in prev { //Update bounds on the single column
                 *f &= !tail_mask; 
             }
-            return;
-        }
-
-        let (first, right) = self.grid.split_at_mut(self.height); // First Column
-        for (f,r) in first.iter_mut().zip(right.iter()) {
-            *f ^= ((r << VECTOR_WIDTH) ^ *f) & edge_mask; 
-        }
-
-        let mut start = 0;
-        while start < self.grid.len() - 2*self.height {           // Middle Columns
-            let (left, remaining) = self.grid[start..].split_at_mut(self.height);
-            let (middle, right) = remaining.split_at_mut(self.height);
-
-            for ((l, m), r) in left.iter().zip(middle.iter_mut()).zip(right.iter()) {
-                *m ^= (((l >> VECTOR_WIDTH) | (r << VECTOR_WIDTH)) ^ *m) & edge_mask
-            }
-
-            start += self.height;
-        }
-        
-        let (left, end) = self.grid[start..].split_at_mut(self.height); // Last Column
-        for (l, e) in left.iter().zip(end.iter_mut()) {
-            *e ^= ((l >> VECTOR_WIDTH) ^ *e) & tail_mask;
         }
     }
 
     pub fn is_alive(&self, x: usize, y: usize) -> bool {
-        let index = (x /VECTOR_WIDTH)* self.height + y;
-        let offset = x % VECTOR_WIDTH + 1;
+        let index = (x / CLUSTER_LEN)* self.height + y;
+        let offset = x % CLUSTER_LEN + 1;
         ((self.grid[index] >> offset) & 0b1) == 1
     }
 }
