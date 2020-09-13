@@ -1,7 +1,7 @@
 # Fast bit-twiddling, Conway's Game of Life 
 
 
-An extremely fast implementation of [Conway's Game of Life](https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life) in rust, optimized for x86_64.  The performance features in this implementation include:
+An extremely fast implementation of [Conway's Game of Life](https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life) in rust, optimized for x86_64. Designed for interactive use, of large grids.  The performance features in this implementation include:
 * Compressed state representation: Each 8 byte cell cluster stores the state of 62 cells.
 * Vectorized update function: Using bit-twiddling, 62 cells are update simultaneously.
 * Single pass: The majority of the update function runs a single pass across the memory.
@@ -11,8 +11,7 @@ An extremely fast implementation of [Conway's Game of Life](https://en.wikipedia
 
 
 ## Benchmarks
-All benchmarks are run with a single thread. For context, a more typical implementation claiming to be fast can be found [here](https://github.com/bbli/fast_game_of_life/tree/8bcbaf6b737d3862ac6abe35e534f1007ef9827f) and, even with multi-threading, takes over 1000ms/iteration on
-the 10000x10000 grid.
+All benchmarks are run with a single thread. 
     
 | Cpu       |  1000x1000 Grid  | 10000x10000 Grid |
 | --------  | ------------------- | --------------------- |
@@ -21,6 +20,10 @@ the 10000x10000 grid.
 | Intel i5-6300U (2.4GHz, -target-cpu=native) | ~0.03ms/iteration |  ~3.6ms/iteration            |
 
 The current benchmark initializes the grid with an pseudo-random initial state and then performs 100 iterations in a loop. 
+
+For context, a more typical implementation claiming to be fast can be found [here](https://github.com/bbli/fast_game_of_life/tree/8bcbaf6b737d3862ac6abe35e534f1007ef9827f) and, even with multi-threading, takes over 1000ms/iteration on
+the 10000x10000 grid. Algorthims like [hashlife](https://en.wikipedia.org/wiki/Hashlife), can be faster if you want skip to specific 
+large iteration or when sparse or repeated patterns are present. However, hashlife speed depends heavily on the input and is slower if you iterate one step at a time. Moreover, Hashlife is also significantly more complex to implement. For example, it needs a garbage collector to remove unused nodes from the cache system.
 
 This implementation preforms well indeed, below is a `perf stat` of running 100 iterations on a 10000x10000 grid using the 5-6300U machine, with `-C target-cpu=native`.
 
