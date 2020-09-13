@@ -27,30 +27,38 @@ impl GameOfLife {
 
         // Computes the next state for the VECTOR_WIDTH cells in row
         fn compute_next(above:CellCluster, row: CellCluster, below: CellCluster) -> u64 {
-            let a = above ^ row ^ below;
-            let b = (above & row & below) | ((above | row | below) & !a);
+            let a = above ^ row ^ below; // parity in a column
+            let b = (above & row & below) | ((above | row | below) & !a); //three_or_two in a column
 
             let (a1, a2, a3) = (a << 1, above ^ below, a >> 1);
-            let a_xor = a1 ^ a2 ^ a3;
-            let a_and = a1 & a2 & a3;
-            let a_or  = a1 | a2 | a3;
+            let a_odd  = a1 ^ a2 ^ a3;
+            let a_all  = a1 & a2 & a3;
+            let a_some = a1 | a2 | a3;
             
-            let (b1, b2, b3) = (b << 1, (above | below) & !a2, b >> 1);
-            let b_xor = b1 ^ b2 ^ b3;
-            let b_and = b1 & b2 & b3;
-            let b_or =  b1 | b2 | b3;
+            let (b1, b2, b3) = (b << 1, above & below, b >> 1);
+            let b_odd  = b1 ^ b2 ^ b3;
+            let b_all  = b1 & b2 & b3;
+            let b_some = b1 | b2 | b3;
+
+            // Logic Example: if !b_some[1], all three columns of neighbours for cell [1], have 
+            //  either 1 or 0 live cells. Further, if a_all[1] each column has an odd number of 
+            //  neighbours. Thus we can conclude that for each of the 3 columns there exactly 
+            //  one live neighbour, hence cell [1] has 3 live neighbours. This is computed the 
+            //  by the mask below, (a_all & !b_some).
 
             //live neighbour count masks
-            let three = (!b_or & a_and) | (b_xor & !b_and & a_xor & !a_and); 
-            let two   = (!b_or & !a_xor & a_or) | (b_xor & !b_and & !a_or);
+            let three = (a_all & !b_some) | (a_odd & b_odd & !a_all & !b_all); 
+            let two   = (!a_odd & a_some & !b_some) | ( b_odd & !b_all & !a_some);
 
             return three | (row & two);
         }
 
         for rows in self.grid.chunks_mut(self.height) { // could use rayon to go faster here
             let mut above = 0;
-            for i in 0..rows.len() - 1 { // Sadly as of RUST 1.46, the bound checks
-                let row = rows[i];       // are not removed, performance suffers a bit
+            for i in 0..rows.len() - 1 {
+                // Sadly as of RUST 1.46, the bound checks
+                // are not removed, performance suffers a bit
+                let row = rows[i];     
                 rows[i] = compute_next(above, row, rows[i+1]); 
                 above = row;
             }
@@ -130,6 +138,7 @@ impl GameOfLife {
         print!("\n");
     }
 }
+
 fn bench(size:usize) {
     let mut game = GameOfLife::new(size,size);
     let mut rng = oorandom::Rand64::new(0xdeadbeaf);
@@ -137,16 +146,15 @@ fn bench(size:usize) {
         *cluster = rng.rand_u64();
     }
     let steps = 100;
-    eprintln!("benchmarking {}x{} with {} steps", size, size, steps);
+    eprintln!("== Benchmarking {}x{} with {} steps ==", size, size, steps);
     let start_time = std::time::Instant::now();
     for _ in 0..steps {
         game.tick();
     }
     let elapsed = start_time.elapsed();
     let parity = game.grid.iter().fold(0u64,|x,&y| y ^ x );
-    eprintln!("benchmark complete, avg tick: {} ms", (elapsed.as_secs_f64()*1000.0)/(steps as f64));
     eprintln!("end state parity:{:X}",parity);
-
+    eprintln!("== Benchmark complete, avg tick: {} ms ==\n", (elapsed.as_secs_f64()*1000.0)/(steps as f64));
 }
 
 fn example() {
@@ -174,11 +182,11 @@ fn example() {
         game.tick();
         std::thread::sleep(std::time::Duration::from_millis(30));
     }
-
 }
+
 fn main() {
     bench(100);
     bench(1000);
     bench(10000);
-    //example();
+//    example();
 }
