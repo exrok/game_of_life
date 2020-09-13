@@ -1,14 +1,7 @@
 # Fast bit-twiddling, Conway's Game of Life 
 
-<center>
-<img
-  src="https://raw.githubusercontent.com/exrok/game_of_life/master/media/example.gif"
-  alt="Game of life simulation."
-  width=256
-/>
-</center>
 
-An extremely fast implementation Conway's Game of Life implemented in rust, optimized for x86_64. Performance 
+An extremely fast implementation [Conway's Game of Life](https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life) implemented in rust, optimized for x86_64.  Performance 
 features of the this implementation include:
 * Compressed state representation: Each 8 byte cell cluster stores the state of 62 cells.
 * Vectorized update function: Using bit-twiddling, 62 cells are update simultaneously.
@@ -54,4 +47,11 @@ end state parity:CF29537D34FF8F1C
        0.364494000 seconds user
        0.003354000 seconds sys
 ```
-
+## Example
+<p align="center">
+<img
+  src="https://raw.githubusercontent.com/exrok/game_of_life/master/media/example.gif"
+  alt="Game of life simulation."
+  width=200
+/>
+</p>
