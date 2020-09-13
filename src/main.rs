@@ -1,13 +1,16 @@
-// Each u64 in the grid represented VECTOR_WIDTH cells, the lowest and highest bit are used
-// to merge the most outer neighbour cell. The merging is preformed in extend edges. 
-//
+
 // On the boundary of the grid all cells out side the grid are treat as dead for
 // the neighbour counts.
 pub struct GameOfLife {
     width: usize,
     height: usize,
-    grid: Box<[u64]> 
+    grid: Box<[CellCluster]> 
 }
+
+// Each cell cluster stores the state 62 cells  
+// the most and least signficant bits are used as temporaries
+// to store the next and prev cell of the adjacent clusters.
+type CellCluster = u64;
 
 const VECTOR_WIDTH: usize = 62;
 impl GameOfLife {
@@ -15,7 +18,7 @@ impl GameOfLife {
         GameOfLife {
             width,
             height,
-            grid: vec![0;((width+61)/VECTOR_WIDTH)*height].into()
+            grid: vec![0;((width+(VECTOR_WIDTH - 1))/VECTOR_WIDTH)*height].into()
         }
     }
 
@@ -23,7 +26,7 @@ impl GameOfLife {
         self.extend_edges();
 
         // Computes the next state for the VECTOR_WIDTH cells in row
-        fn compute_next(above:u64, row: u64, below: u64) -> u64 {
+        fn compute_next(above:CellCluster, row: CellCluster, below: CellCluster) -> u64 {
             let a = above ^ row ^ below;
             let b = (above & row & below) | ((above | row | below) & !a);
 
@@ -44,10 +47,10 @@ impl GameOfLife {
             return three | (row & two);
         }
 
-        for rows in self.grid.chunks_mut(self.height) {
+        for rows in self.grid.chunks_mut(self.height) { // could use rayon to go faster here
             let mut above = 0;
             for i in 0..rows.len() - 1 { // Sadly as of RUST 1.46, the bound checks
-                let row = rows[i];     // are not removed, performance suffers a bit
+                let row = rows[i];       // are not removed, performance suffers a bit
                 rows[i] = compute_next(above, row, rows[i+1]); 
                 above = row;
             }
@@ -57,7 +60,12 @@ impl GameOfLife {
         }
     }
 
-    // Places the neighbouring cells on edges of rowsumns on the adjacent rowsumns
+    // Stores the next and prev cell of the adjacent clusters of each column into
+    // the temporary cells in each cluster. 
+    //    
+    //  TAAA...AAAT, TBBB...BBBT, TCCC...CCCT
+    // =>
+    //  0AAA...AAAB, ABBB...BBBC, BCCC...CCC0
     fn extend_edges(&mut self) {
         let edge_mask = 0x8000_0000_0000_0001;
         //tail_mask is used to zero extra width in the last rowsumn
@@ -93,7 +101,9 @@ impl GameOfLife {
     }
 
     pub fn is_alive(&self, x: usize, y: usize) -> bool {
-        ((self.grid[((x /VECTOR_WIDTH)* self.height + y)] >> (x % VECTOR_WIDTH + 1)) & 0b1) == 1
+        let index = (x /VECTOR_WIDTH)* self.height + y;
+        let offset = x % VECTOR_WIDTH + 1;
+        ((self.grid[index] >> offset) & 0b1) == 1
     }
 }
 
