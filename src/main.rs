@@ -56,16 +56,15 @@ impl GameOfLife {
 
         for rows in self.grid.chunks_mut(self.height) { // could use rayon to go faster here
             let mut above = 0;
-            for i in 0..rows.len() - 1 {
-                // Sadly as of RUST 1.46, the bound checks
-                // are not removed, performance suffers a bit
-                let row = rows[i];     
-                rows[i] = compute_next(above, row, rows[i+1]); 
+            let mut clusters = rows.iter_mut();
+            let mut curr = clusters.next().unwrap(); 
+            for below in clusters {
+                let row = *curr;     
+                *curr = compute_next(above, row, *below); 
                 above = row;
+                curr = below;
             }
-            if let Some(last) = rows.last_mut() {
-                *last = compute_next(above, *last, 0)
-            }
+            *curr = compute_next(above, *curr, 0);
         }
     }
 
