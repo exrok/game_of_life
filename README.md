@@ -8,16 +8,17 @@ An extremely fast implementation of [Conway's Game of Life](https://en.wikipedia
 * Linear access: The update function preforms linearly accesses across a single continuous buffer. 
 * In place update: The update functions works in-place and uses no auxiliary memory. 
 * Branchless logic: Leading to extremely predictable branches; 
+* Simple: ~100 source lines of code (SLOC).
 
 
 ## Benchmarks
 All benchmarks are run with a single thread. 
     
-| Cpu       |  1000x1000 Grid  | 10000x10000 Grid |
+| Cpu                                        |  1000x1000 Grid    | 10000x10000 Grid |
 | --------  | ------------------- | --------------------- |
-| Amd FX-8350 (4Ghz)                          | ~0.05ms/iteration      | ~6.4ms/iteration                | 
-| Intel i5-6300U (2.4GHz)                     | ~0.05ms/iteration |  ~5.4ms/iteration           |
-| Intel i5-6300U (2.4GHz, -target-cpu=native) | ~0.03ms/iteration |  ~3.6ms/iteration            |
+| Amd FX-8350 (4Ghz)                          | ~0.05ms/iteration | ~6.4ms/iteration | 
+| Intel i5-6300U (2.4GHz)                     | ~0.05ms/iteration | ~5.4ms/iteration |
+| Intel i5-6300U (2.4GHz, -target-cpu=native) | ~0.03ms/iteration | ~3.6ms/iteration |
 
 The current benchmark initializes the grid with an pseudo-random initial state and then performs 100 iterations in a loop. 
 
