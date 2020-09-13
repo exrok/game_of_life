@@ -65,8 +65,7 @@ impl GameOfLife {
 
         let edge_mask = 0x8000_0000_0000_0001;
         //tail_mask is used to zero extra width in the last rowsumn
-        let tail_mask = edge_mask | !(!0u64 >> ((CLUSTER_LEN+1) - self.width % CLUSTER_LEN));  
-
+        let tail_mask = edge_mask | !(!0u64 >> (CLUSTER_LEN - (self.width-1) % CLUSTER_LEN));  
         let mut columns = self.grid.chunks_exact_mut(self.height);
         let mut prev = columns.next().unwrap(); 
 
@@ -100,6 +99,7 @@ impl GameOfLife {
             for f in prev.iter_mut() { //Update bounds on the single column
                 *f &= !tail_mask; 
             }
+            eprintln!("SINGLE");
         }
         tick_column(prev);
     }
@@ -115,35 +115,37 @@ impl GameOfLife {
 impl GameOfLife {
     fn print(&self) {
         //not optmized just for proof of concept
-        for _ in 0..self.width+2 {
-            print!("_");
+            print!("┌");
+        for _ in 0..self.width {
+            print!("─");
         }
-        print!("\n");
+        print!("┐\n");
         for y in 0..self.height {
-            print!("|");
+            print!("│");
             for x in 0..self.width {
                 print!("{}", if self.is_alive(x,y) {
-                    'X'
-                } else {' '})
+                    "█" 
+                } else {" "})
             }
-            print!("|");
+            print!("│");
             print!("\n");
         }
-        for _ in 0..self.width+2 {
-            print!("-");
+        print!("└");
+        for _ in 0..self.width {
+            print!("─");
         }
-        print!("\n");
+        print!("┘\n");
     }
 }
 
-fn bench(size:usize) {
-    let mut game = GameOfLife::new(size,size);
+fn bench(width:usize,height:usize) {
+    let mut game = GameOfLife::new(width,height);
     let mut rng = oorandom::Rand64::new(0xdeadbeaf);
     for cluster in game.grid.iter_mut() {
         *cluster = rng.rand_u64();
     }
     let steps = 100;
-    eprintln!("== Benchmarking {}x{} with {} steps ==", size, size, steps);
+    eprintln!("== Benchmarking {}x{} with {} steps ==", width, height, steps);
     let start_time = std::time::Instant::now();
     for _ in 0..steps {
         game.tick();
@@ -155,8 +157,7 @@ fn bench(size:usize) {
 }
 
 fn example() {
-    // EXAMPLE
-    let mut game = GameOfLife::new(89,32);
+    let mut game = GameOfLife::new(63,20);
     game.grid[4] = 0b001110001110000; //star thing
     game.grid[5] = 0;
     game.grid[6] = 0b100001010000100;
@@ -171,19 +172,21 @@ fn example() {
     game.grid[15] = 0;
     game.grid[16] = 0b001110001110000;
 
-    game.grid[4] |= 0b01000000000000000000000000000000000000000000000000000000; //glider
-    game.grid[5] |= 0b01010000000000000000000000000000000000000000000000000000;
-    game.grid[6] |= 0b01100000000000000000000000000000000000000000000000000000;
+    game.grid[0] |= 0b01000000000000000000000000000000100000000000000000000000000; //glider
+    game.grid[1] |= 0b01010000000000000000000000000000100000000000000000000000000;
+    game.grid[2] |= 0b01100000000000000000000000000000100000000000000000000000000;
+
     for _ in 0..100 {
         game.print();
         game.tick();
-        std::thread::sleep(std::time::Duration::from_millis(30));
+        std::thread::sleep(std::time::Duration::from_millis(300));
     }
 }
 
 fn main() {
-    bench(100);
-    bench(1000);
-    bench(10000);
-   // example();
+    bench(100,100);
+    bench(1000,1000);
+    bench(10000,10000);
+
+    //example();
 }
