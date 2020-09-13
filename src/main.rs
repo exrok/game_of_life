@@ -1,4 +1,3 @@
-
 // On the boundary of the grid all cells out side the grid are treat as dead for
 // the neighbour counts.
 pub struct GameOfLife {
@@ -12,8 +11,8 @@ pub struct GameOfLife {
 // the row of the adjacent clusters. These temporaries are called the edges,  
 // and are undefined outside of the tick functions.  
 type CellCluster = u64;
-
 const CLUSTER_LEN: usize = 62;
+
 impl GameOfLife {
     pub fn new(width: usize, height: usize) -> GameOfLife {
         GameOfLife {
@@ -22,60 +21,48 @@ impl GameOfLife {
             grid: vec![0;((width+(CLUSTER_LEN - 1))/CLUSTER_LEN)*height].into()
         }
     }
-
+    
     pub fn tick(&mut self) {
-        self.update_cluster_edges();
+        fn tick_column(column: &mut [CellCluster]) {
+            // Computes the next state for the CLUSTER_LEN cells in row
+            fn compute_next(above: CellCluster, row: CellCluster, below: CellCluster) -> u64 {
+                let a = above ^ row ^ below; // parity in a column
+                let b = (above & row & below) | ((above | row | below) & !a); //three_or_two in a column
 
-        // Computes the next state for the CLUSTER_LEN cells in row
-        fn compute_next(above: CellCluster, row: CellCluster, below: CellCluster) -> u64 {
-            let a = above ^ row ^ below; // parity in a column
-            let b = (above & row & below) | ((above | row | below) & !a); //three_or_two in a column
+                let (a1, a2, a3) = (a << 1, above ^ below, a >> 1);
+                let a_odd  = a1 ^ a2 ^ a3;
+                let a_all  = a1 & a2 & a3;
+                let a_some = a1 | a2 | a3;
+                
+                let (b1, b2, b3) = (b << 1, above & below, b >> 1);
+                let b_odd  = b1 ^ b2 ^ b3;
+                let b_all  = b1 & b2 & b3;
+                let b_some = b1 | b2 | b3;
 
-            let (a1, a2, a3) = (a << 1, above ^ below, a >> 1);
-            let a_odd  = a1 ^ a2 ^ a3;
-            let a_all  = a1 & a2 & a3;
-            let a_some = a1 | a2 | a3;
-            
-            let (b1, b2, b3) = (b << 1, above & below, b >> 1);
-            let b_odd  = b1 ^ b2 ^ b3;
-            let b_all  = b1 & b2 & b3;
-            let b_some = b1 | b2 | b3;
+                // Logic Example: if !b_some[1], all three columns of neighbours for cell [1], have 
+                //  either 1 or 0 live cells. Further, if a_all[1] each column has an odd number of 
+                //  neighbours. Thus we can conclude that for each of the 3 columns there exactly 
+                //  one live neighbour, hence cell [1] has 3 live neighbours. This is computed the 
+                //  by the mask below, (a_all & !b_some).
 
-            // Logic Example: if !b_some[1], all three columns of neighbours for cell [1], have 
-            //  either 1 or 0 live cells. Further, if a_all[1] each column has an odd number of 
-            //  neighbours. Thus we can conclude that for each of the 3 columns there exactly 
-            //  one live neighbour, hence cell [1] has 3 live neighbours. This is computed the 
-            //  by the mask below, (a_all & !b_some).
+                //live neighbour count masks
+                let three = (a_all & !b_some) | (a_odd & b_odd & !a_all & !b_all); 
+                let two   = (!a_odd & a_some & !b_some) | ( b_odd & !b_all & !a_some);
 
-            //live neighbour count masks
-            let three = (a_all & !b_some) | (a_odd & b_odd & !a_all & !b_all); 
-            let two   = (!a_odd & a_some & !b_some) | ( b_odd & !b_all & !a_some);
+                return three | (row & two);
+            }
 
-            return three | (row & two);
-        }
-
-        for rows in self.grid.chunks_mut(self.height) { // could use rayon to go faster here
+            let mut clusters = column.iter_mut();
             let mut above = 0;
-            let mut clusters = rows.iter_mut();
-            let mut curr = clusters.next().unwrap(); 
+            let mut curr = clusters.next().unwrap(); //chunks_mut returns non-empty slices
+
             for below in clusters {
-                let row = *curr;     
-                *curr = compute_next(above, row, *below); 
-                above = row;
+                *curr = compute_next(above, {above = *curr; *curr}, *below); 
                 curr = below;
             }
             *curr = compute_next(above, *curr, 0);
         }
-    }
 
-    // Stores the next and prev cell of the adjacent clusters of each column into
-    //  the temporary cells in each cluster. Further, the horizontal boundary 
-    //  behaviour is provided by zeroing the first and last cells of each row. 
-    //
-    //  TAAA...AAAT, TBBB...BBBT, TCCC...CCCT
-    // =>
-    //  0AAA...AAAB, ABBB...BBBC, BCCC...CCC0
-    fn update_cluster_edges(&mut self) {
         let edge_mask = 0x8000_0000_0000_0001;
         //tail_mask is used to zero extra width in the last rowsumn
         let tail_mask = edge_mask | !(!0u64 >> ((CLUSTER_LEN+1) - self.width % CLUSTER_LEN));  
@@ -83,6 +70,14 @@ impl GameOfLife {
         let mut columns = self.grid.chunks_exact_mut(self.height);
         let mut prev = columns.next().unwrap(); 
 
+        // Stores the next and prev cell of the adjacent clusters of each column into
+        //  the temporary cells in each cluster. Further, the horizontal boundary 
+        //  behaviour is provided by zeroing the first and last cells of each row. 
+        //
+        //  TAAA...AAAT, TBBB...BBBT, TCCC...CCCT
+        // =>
+        //  0AAA...AAAB, ABBB...BBBC, BCCC...CCC0
+        //  
         if let Some(mut curr) = columns.next() {
             for (first, second) in prev.iter_mut().zip(curr.iter()) {
                 *first ^= ((second << CLUSTER_LEN) ^ *first) & edge_mask; 
@@ -92,6 +87,7 @@ impl GameOfLife {
                 for ((left, mid), right) in prev.iter().zip(curr.iter_mut()).zip(next.iter()) {
                     *mid ^= (((left >> CLUSTER_LEN) | (right << CLUSTER_LEN)) ^ *mid) & edge_mask
                 }
+                tick_column(prev);
                 prev = curr;
                 curr = next;
             }
@@ -99,16 +95,19 @@ impl GameOfLife {
             for (left, last) in prev.iter().zip(curr.iter_mut()) {
                 *last ^= ((left >> CLUSTER_LEN) ^ *last) & tail_mask; 
             }
+            tick_column(curr);
         } else {
-            for f in prev { //Update bounds on the single column
+            for f in prev.iter_mut() { //Update bounds on the single column
                 *f &= !tail_mask; 
             }
         }
+        tick_column(prev);
     }
 
+    #[inline]
     pub fn is_alive(&self, x: usize, y: usize) -> bool {
         let index = (x / CLUSTER_LEN)* self.height + y;
-        let offset = x % CLUSTER_LEN + 1;
+        let offset = (x % CLUSTER_LEN) + 1;
         ((self.grid[index] >> offset) & 0b1) == 1
     }
 }
@@ -186,5 +185,5 @@ fn main() {
     bench(100);
     bench(1000);
     bench(10000);
-//    example();
+   // example();
 }
