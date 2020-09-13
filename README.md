@@ -1,8 +1,7 @@
 # Fast bit-twiddling, Conway's Game of Life 
 
 
-An extremely fast implementation [Conway's Game of Life](https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life) implemented in rust, optimized for x86_64.  Performance 
-features of the this implementation include:
+An extremely fast implementation of [Conway's Game of Life](https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life) in rust, optimized for x86_64.  The performance features in this implementation include:
 * Compressed state representation: Each 8 byte cell cluster stores the state of 62 cells.
 * Vectorized update function: Using bit-twiddling, 62 cells are update simultaneously.
 * Single pass: The majority of the update function runs a single pass across the memory.
@@ -21,12 +20,11 @@ the 10000x10000 grid.
 | Intel i5-6300U (2.4GHz)                     | ~0.05ms/iteration |  ~5.4ms/iteration           |
 | Intel i5-6300U (2.4GHz, -target-cpu=native) | ~0.03ms/iteration |  ~3.6ms/iteration            |
 
-Note: The current benchmark initializes the grid with an pseudo-random initial state and then performs 100 iterations in a loop. In a different environment performance would vary but the magnitude of 
-the results should be consistent.
+The current benchmark initializes the grid with an pseudo-random initial state and then performs 100 iterations in a loop. 
 
-This implementation preforms very well indeed, below is a `perf stat` of running 100 iterations on a 10000x10000 random grid from the i5-6300U machine, with `-C target-cpu=native`.
+This implementation preforms well indeed, below is a `perf stat` of running 100 iterations on a 10000x10000 grid using the 5-6300U machine, with `-C target-cpu=native`.
 
-The total amount of cells updates that occur is 10,000x10,000x100=10,000,000,000 the average number of instructions to update a single cell as 2,227,035,775/10,000,000,000 = **0.227 instructions/cell**... hence the vectorization is working quite well. 
+The total amount of cells updates that occur is 10,000x10,000x100=10,000,000,000. Thus the average number of instructions to update a single cell was 2,227,035,775/10,000,000,000 = **0.227 instructions/cell**... hence the vectorization is working well. 
 ```sh
 > perf stat target/release/game_of_life
 == Benchmarking 10000x10000 with 100 iterations ==
