@@ -76,7 +76,6 @@ impl GameOfLife {
         //  TAAA...AAAT, TBBB...BBBT, TCCC...CCCT
         // =>
         //  0AAA...AAAB, ABBB...BBBC, BCCC...CCC0
-        //  
         if let Some(mut curr) = columns.next() {
             for (first, second) in prev.iter_mut().zip(curr.iter()) {
                 *first ^= ((second << CLUSTER_LEN) ^ *first) & edge_mask; 
@@ -99,7 +98,6 @@ impl GameOfLife {
             for f in prev.iter_mut() { //Update bounds on the single column
                 *f &= !tail_mask; 
             }
-            eprintln!("SINGLE");
         }
         tick_column(prev);
     }
@@ -115,7 +113,7 @@ impl GameOfLife {
 impl GameOfLife {
     fn print(&self) {
         //not optmized just for proof of concept
-            print!("┌");
+        print!("┌");
         for _ in 0..self.width {
             print!("─");
         }
@@ -157,7 +155,7 @@ fn bench(width:usize,height:usize) {
 }
 
 fn example() {
-    let mut game = GameOfLife::new(63,20);
+    let mut game = GameOfLife::new(80,20);
     game.grid[4] = 0b001110001110000; //star thing
     game.grid[5] = 0;
     game.grid[6] = 0b100001010000100;
@@ -179,7 +177,7 @@ fn example() {
     for _ in 0..100 {
         game.print();
         game.tick();
-        std::thread::sleep(std::time::Duration::from_millis(300));
+        std::thread::sleep(std::time::Duration::from_millis(66));
     }
 }
 
@@ -188,5 +186,5 @@ fn main() {
     bench(1000,1000);
     bench(10000,10000);
 
-    //example();
+   //example();
 }

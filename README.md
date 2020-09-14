@@ -14,18 +14,18 @@ A fast implementation of [Conway's Game of Life](https://en.wikipedia.org/wiki/C
 ## Benchmarks
 All benchmarks are run with a single thread. 
     
-| Cpu                                        |  1000x1000 Grid    | 10000x10000 Grid |
-| --------  | ------------------- | --------------------- |
+| Cpu                                         |  1000x1000 Grid   | 10000x10000 Grid |
+| ------------------------------------------- | ----------------- | ---------------- |
 | Amd FX-8350 (4Ghz)                          | ~0.05ms/iteration | ~6.4ms/iteration | 
 | Intel i5-6300U (2.4GHz)                     | ~0.05ms/iteration | ~5.4ms/iteration |
 | Intel i5-6300U (2.4GHz, -target-cpu=native) | ~0.03ms/iteration | ~3.6ms/iteration |
 
 The current benchmark initializes the grid with an pseudo-random initial state and then performs 100 iterations in a loop. 
 
-For context, a more typical implementation claiming to be fast can be found [here](https://github.com/bbli/fast_game_of_life/tree/8bcbaf6b737d3862ac6abe35e534f1007ef9827f) and, even with multi-threading, takes over 1000ms/iteration on
+For context, a more typical implementation can be found [here](https://github.com/bbli/fast_game_of_life/tree/8bcbaf6b737d3862ac6abe35e534f1007ef9827f) and, even with multi-threading, takes over 1000ms/iteration on
 the 10000x10000 grid. Algorthims like [hashlife](https://en.wikipedia.org/wiki/Hashlife), can be faster if you want skip a large number of iterations or when sparse or repeated patterns are present. However, hashlife speed depends heavily on the input and is slower if you iterate one step at a time. Moreover, Hashlife is also significantly more complex to implement. For example, it needs a garbage collector to remove unused nodes from the cache system.
 
-This implementation preforms well indeed, below is a `perf stat` of running 100 iterations on a 10000x10000 grid using the 5-6300U machine, with `-C target-cpu=native`.
+This implementation preforms well indeed, below is a `perf stat` of running 100 iterations on a 10000x10000 grid using the i5-6300U machine, with `-C target-cpu=native`.
 
 The total amount of cells updates that occur is 10,000x10,000x100=10,000,000,000. Thus the average number of instructions to update a single cell was 2,227,035,775/10,000,000,000 = **0.227 instructions/cell**... hence the vectorization is working well. 
 ```sh
