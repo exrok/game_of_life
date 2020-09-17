@@ -26,30 +26,11 @@ impl GameOfLife {
         fn tick_column(column: &mut [CellCluster]) {
             // Computes the next state for the CLUSTER_LEN cells in row
             fn compute_next(above: CellCluster, row: CellCluster, below: CellCluster) -> u64 {
-                let a = above ^ row ^ below; // parity in a column
-                let b = (above & row & below) | ((above | row | below) & !a); //three_or_two in a column
-
-                let (a1, a2, a3) = (a << 1, above ^ below, a >> 1);
-                let a_odd  = a1 ^ a2 ^ a3;
-                let a_all  = a1 & a2 & a3;
-                let a_some = a1 | a2 | a3;
-                
-                let (b1, b2, b3) = (b << 1, above & below, b >> 1);
-                let b_odd  = b1 ^ b2 ^ b3;
-                let b_all  = b1 & b2 & b3;
-                let b_some = b1 | b2 | b3;
-
-                // Logic Example: if !b_some[1], all three columns of neighbours for cell [1], have 
-                //  either 1 or 0 live cells. Further, if a_all[1] each column has an odd number of 
-                //  neighbours. Thus we can conclude that for each of the 3 columns there exactly 
-                //  one live neighbour, hence cell [1] has 3 live neighbours. This is computed the 
-                //  by the mask below, (a_all & !b_some).
-
-                //live neighbour count masks
-                let three = (a_all & !b_some) | (a_odd & b_odd & !a_all & !b_all); 
-                let two   = (!a_odd & a_some & !b_some) | ( b_odd & !b_all & !a_some);
-
-                return three | (row & two);
+                let split_add = |a,b,c| (a^b^c, a&b | a&c | b&c);
+                let (a, b)   = split_add(above, row, below);
+                let (ax, ay) = split_add(a << 1, above ^ below, a >> 1);
+                let (bx, by) = split_add(b << 1, above & below, b >> 1);
+                return (ax | row) & (ay ^ bx) & !by;
             }
 
             let mut clusters = column.iter_mut();
@@ -69,13 +50,8 @@ impl GameOfLife {
         let mut columns = self.grid.chunks_exact_mut(self.height);
         let mut prev = columns.next().unwrap(); 
 
-        // Stores the next and prev cell of the adjacent clusters of each column into
-        //  the temporary cells in each cluster. Further, the horizontal boundary 
-        //  behaviour is provided by zeroing the first and last cells of each row. 
-        //
-        //  TAAA...AAAT, TBBB...BBBT, TCCC...CCCT
-        // =>
-        //  0AAA...AAAB, ABBB...BBBC, BCCC...CCC0
+        // Storing the next and prev cell of the adjacent clusters of each column into
+        // the temporary cells in each cluster. And progress to next state w/ tick_column
         if let Some(mut curr) = columns.next() {
             for (first, second) in prev.iter_mut().zip(curr.iter()) {
                 *first ^= ((second << CLUSTER_LEN) ^ *first) & edge_mask; 
@@ -143,7 +119,7 @@ fn bench(width:usize,height:usize) {
         *cluster = rng.rand_u64();
     }
     let steps = 100;
-    eprintln!("== Benchmarking {}x{} with {} steps ==", width, height, steps);
+    eprintln!("== Benchmarking {}x{} with {} iterations ==", width, height, steps);
     let start_time = std::time::Instant::now();
     for _ in 0..steps {
         game.tick();
