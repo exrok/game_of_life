@@ -15,43 +15,47 @@ const CLUSTER_LEN: usize = 62;
 
 impl GameOfLife {
     pub fn new(width: usize, height: usize) -> GameOfLife {
+        let columns = (width + CLUSTER_LEN - 1)/CLUSTER_LEN;
         GameOfLife {
             width,
             height,
-            grid: vec![0;((width+(CLUSTER_LEN - 1))/CLUSTER_LEN)*height].into()
+            grid: vec![0; columns * height].into()
         }
     }
     
     pub fn tick(&mut self) {
         fn tick_column(column: &mut [CellCluster]) {
-            // Computes the next state for the CLUSTER_LEN cells in row
-            fn compute_next(above: CellCluster, row: CellCluster, below: CellCluster) -> u64 {
-                let split_add = |a,b,c| (a^b^c, a&b | a&c | b&c);
-                let (a, b)   = split_add(above, row, below);
-                let (ax, ay) = split_add(a << 1, above ^ below, a >> 1);
-                let (bx, by) = split_add(b << 1, above & below, b >> 1);
-                return (ax | row) & (ay ^ bx) & !by;
+            fn tick_cluster(cluster: &mut CellCluster, above: CellCluster, below: CellCluster) {
+                let bit_sum = |a,b,c| (a^b^c, a&b | a&c | b&c);
+                let (ix, iy) = bit_sum(above, *cluster, below);
+                let (ax, ay) = bit_sum(ix << 1, above ^ below, ix >> 1);
+                let (bx, by) = bit_sum(iy << 1, above & below, iy >> 1);
+                *cluster |= ax;              // three (odd_total /w the condition below) 
+                *cluster &= (ay ^ bx) & !by; // two_or_three_mod4 & !more_than_three 
             }
 
             let mut clusters = column.iter_mut();
+            let mut curr = if let Some(c) = clusters.next() {c} else {return;};
             let mut above = 0;
-            let mut curr = clusters.next().unwrap(); //chunks_mut returns non-empty slices
 
             for below in clusters {
-                *curr = compute_next(above, {above = *curr; *curr}, *below); 
+                let tmp = *curr;
+                tick_cluster(&mut curr, above, *below); 
+                above = tmp;
                 curr = below;
             }
-            *curr = compute_next(above, *curr, 0);
+            tick_cluster(&mut curr, above, 0);
         }
 
         let edge_mask = 0x8000_0000_0000_0001;
         //tail_mask is used to zero extra width in the last rowsumn
-        let tail_mask = edge_mask | !(!0u64 >> (CLUSTER_LEN - (self.width-1) % CLUSTER_LEN));  
+        let tail_width = (self.width + CLUSTER_LEN - 1)%CLUSTER_LEN + 1;
+        let tail_mask = edge_mask | (!1u64 << tail_width);  
         let mut columns = self.grid.chunks_exact_mut(self.height);
-        let mut prev = columns.next().unwrap(); 
+        let mut prev = columns.next().unwrap();
 
         // Storing the next and prev cell of the adjacent clusters of each column into
-        // the temporary cells in each cluster. And progress to next state w/ tick_column
+        // the temporary cells in each cluster. And progress to next state w/ tick_column.
         if let Some(mut curr) = columns.next() {
             for (first, second) in prev.iter_mut().zip(curr.iter()) {
                 *first ^= ((second << CLUSTER_LEN) ^ *first) & edge_mask; 
@@ -59,7 +63,7 @@ impl GameOfLife {
 
             for next in columns {
                 for ((left, mid), right) in prev.iter().zip(curr.iter_mut()).zip(next.iter()) {
-                    *mid ^= (((left >> CLUSTER_LEN) | (right << CLUSTER_LEN)) ^ *mid) & edge_mask
+                    *mid ^= (((left>>CLUSTER_LEN) | (right << CLUSTER_LEN)) ^ *mid) & edge_mask
                 }
                 tick_column(prev);
                 prev = curr;
@@ -157,7 +161,20 @@ fn example() {
     }
 }
 
+
 fn main() {
+    // let width = 40;
+    // let edge_mask = 0x8000_0000_0000_0001;
+    // for width in 1..200 {
+    //     let tail_mask = edge_mask | !(!0u64 >> (CLUSTER_LEN - (width-1) % CLUSTER_LEN));  
+
+    //     let tail_width = (width + CLUSTER_LEN - 1) % CLUSTER_LEN + 1;
+    //     let tail_mask2 = edge_mask | (!1u64 << tail_width);  
+    //     eprintln!("{}",width);
+    //     eprintln!("{:0b}",tail_mask);
+    //     eprintln!("{:0b}",tail_mask2);
+    //     assert_eq!(tail_mask, tail_mask2)
+    // }
     bench(100,100);
     bench(1000,1000);
     bench(10000,10000);
