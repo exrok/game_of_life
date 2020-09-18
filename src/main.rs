@@ -1,15 +1,18 @@
-// On the boundary of the grid all cells out side the grid are treat as dead for
-// the neighbour counts.
+// The boundary is of the grid defined by having all cells out side of the grid be dead.
 pub struct GameOfLife {
     width: usize,
     height: usize,
-    grid: Box<[CellCluster]> 
+    /// grid stores a series of columns of cell-clusters with each cluster storing 62
+    /// cells in a row except for the last column where clusters may store less depending
+    /// of the width of the grid. 
+    grid: Box<[CellCluster]>
 }
 
-// Each cell cluster stores the state 62 cells. The most and least signficant
-// bits are used as temporaries to store a copy of the next and prev cell in
-// the row of the adjacent clusters. These temporaries are called the edges,  
-// and are undefined outside of the tick functions.  
+// Each cell cluster stores the state of 62 cells in a row. The most and least
+// signficant bits are used during the tick function to store a copy of the next 
+// and prev cell of the two adjacent clusters. The most and least signficant bits 
+// are overwritten, while ignoring their previous values, on each call to tick.
+// A cell is alive if the corresponding bit is 1 and dead otherwise.
 type CellCluster = u64;
 const CLUSTER_LEN: usize = 62;
 
@@ -23,10 +26,13 @@ impl GameOfLife {
         }
     }
     
+    /// computes the generation of the grid in place.
     pub fn tick(&mut self) {
+        /// computes the generation of column. Assumes that the most and least significant 
+        /// bits of the clusters store the state of the adjacent cells.
         fn tick_column(column: &mut [CellCluster]) {
             fn tick_cluster(cluster: &mut CellCluster, above: CellCluster, below: CellCluster) {
-                let bit_sum = |a,b,c| (a^b^c, a&b | a&c | b&c);
+                let bit_sum = |a, b, c| (a ^ b ^ c, a&b | a&c | b&c);
                 let (ix, iy) = bit_sum(above, *cluster, below);
                 let (ax, ay) = bit_sum(ix << 1, above ^ below, ix >> 1);
                 let (bx, by) = bit_sum(iy << 1, above & below, iy >> 1);
@@ -54,8 +60,9 @@ impl GameOfLife {
         let mut columns = self.grid.chunks_exact_mut(self.height);
         let mut prev = columns.next().unwrap();
 
-        // Storing the next and prev cell of the adjacent clusters of each column into
-        // the temporary cells in each cluster. And progress to next state w/ tick_column.
+        // Store the next and prev cell of the adjacent clusters of each column into
+        // the temporary cells in each cluster. Once we have set&extracted the outer
+        // cells of each column we progress to the next state w/ tick_column.
         if let Some(mut curr) = columns.next() {
             for (first, second) in prev.iter_mut().zip(curr.iter()) {
                 *first ^= ((second << CLUSTER_LEN) ^ *first) & edge_mask; 
